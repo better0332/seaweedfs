@@ -77,7 +77,7 @@ func (ms *MasterServer) volumeVacuumHandler(w http.ResponseWriter, r *http.Reque
 	if gcThreshold == "" {
 		gcThreshold = ms.garbageThreshold
 	}
-	debug("garbageThreshold =", gcThreshold)
+	glog.Infoln("garbageThreshold =", gcThreshold)
 	ms.Topo.Vacuum(gcThreshold)
 	ms.dirStatusHandler(w, r)
 }
@@ -123,15 +123,27 @@ func (ms *MasterServer) redirectHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	machines := ms.Topo.Lookup("", volumeId)
 	if machines != nil && len(machines) > 0 {
-		http.Redirect(w, r, util.NormalizeUrl(machines[rand.Intn(len(machines))].PublicUrl)+r.URL.Path, http.StatusMovedPermanently)
+		var url string
+		if r.URL.RawQuery != "" {
+			url = util.NormalizeUrl(machines[rand.Intn(len(machines))].PublicUrl) + r.URL.Path + "?" + r.URL.RawQuery
+		} else {
+			url = util.NormalizeUrl(machines[rand.Intn(len(machines))].PublicUrl) + r.URL.Path
+		}
+		http.Redirect(w, r, url, http.StatusMovedPermanently)
 	} else {
 		writeJsonError(w, r, http.StatusNotFound, fmt.Errorf("volume id %d not found", volumeId))
 	}
 }
 
+func (ms *MasterServer) selfUrl(r *http.Request) string {
+	if r.Host != "" {
+		return r.Host
+	}
+	return "localhost:" + strconv.Itoa(ms.port)
+}
 func (ms *MasterServer) submitFromMasterServerHandler(w http.ResponseWriter, r *http.Request) {
 	if ms.Topo.IsLeader() {
-		submitForClientHandler(w, r, "localhost:"+strconv.Itoa(ms.port))
+		submitForClientHandler(w, r, ms.selfUrl(r))
 	} else {
 		masterUrl, err := ms.Topo.Leader()
 		if err != nil {
@@ -144,7 +156,7 @@ func (ms *MasterServer) submitFromMasterServerHandler(w http.ResponseWriter, r *
 
 func (ms *MasterServer) deleteFromMasterServerHandler(w http.ResponseWriter, r *http.Request) {
 	if ms.Topo.IsLeader() {
-		deleteForClientHandler(w, r, "localhost:"+strconv.Itoa(ms.port))
+		deleteForClientHandler(w, r, ms.selfUrl(r))
 	} else {
 		deleteForClientHandler(w, r, ms.Topo.RaftServer.Leader())
 	}

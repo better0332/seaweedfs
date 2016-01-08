@@ -44,9 +44,9 @@ func NewMasterNodes(bootstrapNode string) (mn *MasterNodes) {
 }
 func (mn *MasterNodes) reset() {
 	glog.V(4).Infof("Resetting master nodes: %v", mn)
-	if len(mn.nodes) > 1 && mn.lastNode > 0 {
+	if len(mn.nodes) > 1 && mn.lastNode >= 0 {
 		glog.V(0).Infof("Reset master %s from: %v", mn.nodes[mn.lastNode], mn.nodes)
-		mn.lastNode = -mn.lastNode
+		mn.lastNode = -mn.lastNode - 1
 	}
 }
 func (mn *MasterNodes) findMaster() (string, error) {
@@ -207,7 +207,7 @@ func (l *DiskLocation) loadExistingVolumes(needleMapKind NeedleMapType) {
 			if !dir.IsDir() && strings.HasSuffix(name, ".dat") {
 				collection := ""
 				base := name[:len(name)-len(".dat")]
-				i := strings.Index(base, "_")
+				i := strings.LastIndex(base, "_")
 				if i > 0 {
 					collection, base = base[0:i], base[i+1:]
 				}
@@ -216,6 +216,8 @@ func (l *DiskLocation) loadExistingVolumes(needleMapKind NeedleMapType) {
 						if v, e := NewVolume(l.Directory, collection, vid, needleMapKind, nil, nil); e == nil {
 							l.volumes[vid] = v
 							glog.V(0).Infof("data file %s, replicaPlacement=%s v=%d size=%d ttl=%s", l.Directory+"/"+name, v.ReplicaPlacement, v.Version(), v.Size(), v.Ttl.String())
+						} else {
+							glog.V(0).Infof("new volume %s error %s", name, e)
 						}
 					}
 				}

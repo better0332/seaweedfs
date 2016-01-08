@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/chrislusf/seaweedfs/go/glog"
 )
@@ -80,14 +82,47 @@ func (g *Guard) Secure(f func(w http.ResponseWriter, r *http.Request)) func(w ht
 	}
 }
 
+func GetActualRemoteHost(r *http.Request) (host string, err error) {
+	host = r.Header.Get("HTTP_X_FORWARDED_FOR")
+	if host == "" {
+		host = r.Header.Get("X-FORWARDED-FOR")
+	}
+	if strings.Contains(host, ",") {
+		host = host[0:strings.Index(host, ",")]
+	}
+	if host == "" {
+		host, _, err = net.SplitHostPort(r.RemoteAddr)
+	}
+	return
+}
+
 func (g *Guard) checkWhiteList(w http.ResponseWriter, r *http.Request) error {
 	if len(g.whiteList) == 0 {
 		return nil
 	}
 
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	host, err := GetActualRemoteHost(r)
 	if err == nil {
 		for _, ip := range g.whiteList {
+
+			// If the whitelist entry contains a "/" it
+			// is a CIDR range, and we should check the
+			// remote host is within it
+			match, _ := regexp.MatchString("/", ip)
+			if match {
+				_, cidrnet, err := net.ParseCIDR(ip)
+				if err != nil {
+					panic(err)
+				}
+				remote := net.ParseIP(host)
+				if cidrnet.Contains(remote) {
+					return nil
+				}
+			}
+
+			//
+			// Otherwise we're looking for a literal match.
+			//
 			if ip == host {
 				return nil
 			}

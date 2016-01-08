@@ -16,6 +16,7 @@ const (
 	FlagHasMime             = 0x04
 	FlagHasLastModifiedDate = 0x08
 	FlagHasTtl              = 0x10
+	FlagIsChunkManifest     = 0x80
 	LastModifiedBytesLength = 5
 	TtlBytesLength          = 2
 )
@@ -120,7 +121,7 @@ func (n *Needle) Append(w io.Writer, version Version) (size uint32, err error) {
 					return
 				}
 			}
-			if n.HasTtl() {
+			if n.HasTtl() && n.Ttl != nil {
 				n.Ttl.ToBytes(header[0:TtlBytesLength])
 				if _, err = w.Write(header[0:TtlBytesLength]); err != nil {
 					return
@@ -279,4 +280,12 @@ func (n *Needle) HasTtl() bool {
 }
 func (n *Needle) SetHasTtl() {
 	n.Flags = n.Flags | FlagHasTtl
+}
+
+func (n *Needle) IsChunkedManifest() bool {
+	return n.Flags&FlagIsChunkManifest > 0
+}
+
+func (n *Needle) SetIsChunkManifest() {
+	n.Flags = n.Flags | FlagIsChunkManifest
 }
